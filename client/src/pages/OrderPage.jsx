@@ -6,14 +6,14 @@ function formatPrice(n) {
 }
 
 function optionsLabel(options) {
-  const parts = [];
-  if (options.shot) parts.push('샷 추가');
-  if (options.syrup) parts.push('시럽 추가');
+  const details = Array.isArray(options?.option_details) ? options.option_details : [];
+  const parts = details.map((d) => d.name).filter(Boolean);
   return parts.length ? ` (${parts.join(', ')})` : '';
 }
 
 function cartKey(menuId, options) {
-  return `${menuId}-${options.shot}-${options.syrup}`;
+  const ids = Array.isArray(options?.option_ids) ? options.option_ids : [];
+  return `${menuId}-${ids.slice().sort((a, b) => a - b).join('.')}`;
 }
 
 export default function OrderPage() {
@@ -22,24 +22,39 @@ export default function OrderPage() {
   const [optionsMap, setOptionsMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [ordering, setOrdering] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    api.getMenus().then(setMenus).finally(() => setLoading(false));
+    api
+      .getMenus()
+      .then((data) => {
+        setMenus(data);
+        setError('');
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
   }, []);
 
   function getOptions(menuId) {
-    return optionsMap[menuId] || { shot: false, syrup: false };
+    return optionsMap[menuId] || { option_ids: [] };
   }
 
-  function setOption(menuId, key, value) {
-    setOptionsMap((prev) => ({
-      ...prev,
-      [menuId]: { ...getOptions(menuId), [key]: value },
-    }));
+  function toggleOption(menuId, optionId, checked) {
+    setOptionsMap((prev) => {
+      const current = getOptions(menuId);
+      const set = new Set(current.option_ids || []);
+      if (checked) set.add(optionId);
+      else set.delete(optionId);
+      return { ...prev, [menuId]: { option_ids: Array.from(set).sort((a, b) => a - b) } };
+    });
   }
 
   function calcUnitPrice(menu, options) {
-    return menu.price + (options.shot ? 500 : 0);
+    const ids = Array.isArray(options?.option_ids) ? options.option_ids : [];
+    const optTotal = (menu.options || [])
+      .filter((o) => ids.includes(o.id))
+      .reduce((sum, o) => sum + (o.price || 0), 0);
+    return menu.price + optTotal;
   }
 
   function addToCart(menu) {
@@ -47,6 +62,7 @@ export default function OrderPage() {
     const options = getOptions(menu.id);
     const unitPrice = calcUnitPrice(menu, options);
     const key = cartKey(menu.id, options);
+    const option_details = (menu.options || []).filter((o) => (options.option_ids || []).includes(o.id));
 
     setCart((prev) => {
       const found = prev.find((c) => cartKey(c.menu_id, c.options) === key);
@@ -65,7 +81,7 @@ export default function OrderPage() {
           menu_id: menu.id,
           name: menu.name,
           price: unitPrice,
-          options,
+          options: { ...options, option_details },
           quantity: 1,
         },
       ];
@@ -93,6 +109,7 @@ export default function OrderPage() {
   }
 
   if (loading) return <p className="loading">불러오는 중...</p>;
+  if (error) return <p className="loading">에러: {error}</p>;
 
   return (
     <div className="order-page">
@@ -108,22 +125,16 @@ export default function OrderPage() {
               <h3 className="menu-name">{menu.name}</h3>
               <p className="menu-price">{formatPrice(displayPrice)}</p>
               <p className="menu-desc">{menu.description}</p>
-              <label className="checkbox-row">
-                <input
-                  type="checkbox"
-                  checked={opts.shot}
-                  onChange={(e) => setOption(menu.id, 'shot', e.target.checked)}
-                />
-                샷 추가 (+500원)
-              </label>
-              <label className="checkbox-row">
-                <input
-                  type="checkbox"
-                  checked={opts.syrup}
-                  onChange={(e) => setOption(menu.id, 'syrup', e.target.checked)}
-                />
-                시럽 추가 (+0원)
-              </label>
+              {(menu.options || []).map((opt) => (
+                <label key={opt.id} className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={(opts.option_ids || []).includes(opt.id)}
+                    onChange={(e) => toggleOption(menu.id, opt.id, e.target.checked)}
+                  />
+                  {opt.name} (+{formatPrice(opt.price || 0)})
+                </label>
+              ))}
               <button
                 type="button"
                 className="btn-add"

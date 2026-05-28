@@ -25,7 +25,19 @@ router.get('/stats', async (req, res) => {
     `);
     res.json(rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const message = err?.message || String(err);
+    res.status(500).json({ error: message });
+  }
+});
+
+router.get('/:id', async (req, res) => {
+  try {
+    const order = await getOrder(req.params.id);
+    if (!order) return res.status(404).json({ error: '주문을 찾을 수 없습니다' });
+    res.json(order);
+  } catch (err) {
+    const message = err?.message || String(err);
+    res.status(500).json({ error: message });
   }
 });
 
@@ -41,7 +53,8 @@ router.get('/', async (req, res) => {
     }
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const message = err?.message || String(err);
+    res.status(500).json({ error: message });
   }
 });
 
@@ -62,8 +75,20 @@ router.post('/', async (req, res) => {
       const qty = item.quantity || 1;
       if (menu.stock < qty) throw new Error(`${menu.name} 재고가 부족합니다`);
 
-      const shot = item.options?.shot ? 500 : 0;
-      const unitPrice = menu.price + shot;
+      const optionIds = Array.isArray(item.options?.option_ids) ? item.options.option_ids : [];
+      let optionTotal = 0;
+      let optionDetails = [];
+      if (optionIds.length) {
+        const { rows: optRows } = await client.query(
+          `SELECT id, name, price FROM menu_options WHERE menu_id = $1 AND id = ANY($2::int[]) ORDER BY id`,
+          [menu.id, optionIds]
+        );
+        if (optRows.length !== optionIds.length) throw new Error('유효하지 않은 옵션이 포함되어 있습니다');
+        optionDetails = optRows;
+        optionTotal = optRows.reduce((sum, o) => sum + (o.price || 0), 0);
+      }
+
+      const unitPrice = menu.price + optionTotal;
       totalPrice += unitPrice * qty;
 
       await client.query('UPDATE menus SET stock = stock - $1 WHERE id = $2', [qty, menu.id]);
@@ -72,7 +97,7 @@ router.post('/', async (req, res) => {
         menu_name: menu.name,
         quantity: qty,
         unit_price: unitPrice,
-        options: item.options || {},
+        options: { option_ids: optionIds, option_details: optionDetails },
       });
     }
 
@@ -94,7 +119,8 @@ router.post('/', async (req, res) => {
     res.status(201).json(await getOrder(order.id));
   } catch (err) {
     await client.query('ROLLBACK');
-    res.status(400).json({ error: err.message });
+    const message = err?.message || String(err);
+    res.status(400).json({ error: message });
   } finally {
     client.release();
   }
@@ -111,7 +137,8 @@ router.patch('/:id/status', async (req, res) => {
     await query('UPDATE orders SET status = $1 WHERE id = $2', [next, req.params.id]);
     res.json(await getOrder(req.params.id));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const message = err?.message || String(err);
+    res.status(500).json({ error: message });
   }
 });
 
@@ -130,7 +157,8 @@ router.delete('/:id', async (req, res) => {
     res.json({ message: '취소되었습니다' });
   } catch (err) {
     await client.query('ROLLBACK');
-    res.status(500).json({ error: err.message });
+    const message = err?.message || String(err);
+    res.status(500).json({ error: message });
   } finally {
     client.release();
   }

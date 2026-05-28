@@ -13,9 +13,8 @@ function formatDate(iso) {
 }
 
 function optionsLabel(options) {
-  const parts = [];
-  if (options?.shot) parts.push('샷 추가');
-  if (options?.syrup) parts.push('시럽 추가');
+  const details = Array.isArray(options?.option_details) ? options.option_details : [];
+  const parts = details.map((d) => d.name).filter(Boolean);
   return parts.length ? ` (${parts.join(', ')})` : '';
 }
 

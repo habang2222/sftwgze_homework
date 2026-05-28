@@ -5,43 +5,61 @@ const router = express.Router();
 
 router.get('/', async (req, res) => {
   try {
-    const { rows } = await query('SELECT * FROM menus ORDER BY id');
+    const { rows } = await query(`
+      SELECT
+        m.*,
+        COALESCE(
+          json_agg(
+            json_build_object('id', o.id, 'name', o.name, 'price', o.price)
+            ORDER BY o.id
+          ) FILTER (WHERE o.id IS NOT NULL),
+          '[]'::json
+        ) AS options
+      FROM menus m
+      LEFT JOIN menu_options o ON o.menu_id = m.id
+      GROUP BY m.id
+      ORDER BY m.id
+    `);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const message = err?.message || String(err);
+    res.status(500).json({ error: message });
   }
 });
 
 router.post('/', async (req, res) => {
-  const { name, description, price, stock } = req.body;
+  const { name, description, image_url, price, stock } = req.body;
   if (!name || price == null) return res.status(400).json({ error: '이름과 가격은 필수입니다' });
   try {
     const { rows } = await query(
-      'INSERT INTO menus (name, description, price, stock) VALUES ($1, $2, $3, $4) RETURNING *',
-      [name, description || '간단한 설명...', price, stock ?? 0]
+      'INSERT INTO menus (name, description, image_url, price, stock) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [name, description || '간단한 설명...', image_url || '', price, stock ?? 0]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const message = err?.message || String(err);
+    res.status(500).json({ error: message });
   }
 });
 
 router.put('/:id', async (req, res) => {
-  const { name, description, price, stock } = req.body;
+  const { name, description, image_url, price, stock } = req.body;
   try {
     const { rows } = await query(
       `UPDATE menus SET
         name = COALESCE($1, name),
         description = COALESCE($2, description),
-        price = COALESCE($3, price),
-        stock = COALESCE($4, stock)
-      WHERE id = $5 RETURNING *`,
-      [name, description, price, stock, req.params.id]
+        image_url = COALESCE($3, image_url),
+        price = COALESCE($4, price),
+        stock = COALESCE($5, stock)
+      WHERE id = $6 RETURNING *`,
+      [name, description, image_url, price, stock, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: '메뉴를 찾을 수 없습니다' });
     res.json(rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const message = err?.message || String(err);
+    res.status(500).json({ error: message });
   }
 });
 
@@ -53,7 +71,8 @@ router.patch('/:id/stock', async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: '메뉴를 찾을 수 없습니다' });
     res.json(rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const message = err?.message || String(err);
+    res.status(500).json({ error: message });
   }
 });
 
@@ -63,7 +82,8 @@ router.delete('/:id', async (req, res) => {
     if (!rowCount) return res.status(404).json({ error: '메뉴를 찾을 수 없습니다' });
     res.json({ message: '삭제되었습니다' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const message = err?.message || String(err);
+    res.status(500).json({ error: message });
   }
 });
 
