@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
+import { resolveImageUrl } from '../utils/imageUrl';
 
 function formatPrice(n) {
   return n.toLocaleString('ko-KR') + '원';
@@ -119,8 +120,12 @@ export default function OrderPage() {
           const displayPrice = calcUnitPrice(menu, opts);
           return (
             <article key={menu.id} className="menu-card">
-              <div className="img-placeholder">
-                <span className="img-x">✕</span>
+              <div className="menu-image">
+                {menu.image_url ? (
+                  <img src={resolveImageUrl(menu.image_url)} alt={menu.name} loading="lazy" />
+                ) : (
+                  <span className="img-x">✕</span>
+                )}
               </div>
               <h3 className="menu-name">{menu.name}</h3>
               <p className="menu-price">{formatPrice(displayPrice)}</p>

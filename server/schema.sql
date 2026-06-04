@@ -35,9 +35,9 @@ CREATE TABLE IF NOT EXISTS order_items (
 
 INSERT INTO menus (name, description, image_url, price, stock)
 SELECT * FROM (VALUES
-  ('아메리카노(ICE)', '간단한 설명...', '', 4000, 10),
-  ('아메리카노(HOT)', '간단한 설명...', '', 4000, 10),
-  ('카페라떼', '간단한 설명...', '', 5000, 10)
+  ('아메리카노(ICE)', '진한 에스프레소에 시원한 얼음을 더한 아이스 아메리카노', 'images/americano-ice.png', 4000, 10),
+  ('아메리카노(HOT)', '고소한 원두 향이 살아있는 따뜻한 아메리카노', 'images/americano-hot.png', 4000, 10),
+  ('카페라떼', '부드러운 우유와 에스프레소의 조화', 'images/cafe-latte.png', 5000, 10)
 ) AS v(name, description, image_url, price, stock)
 WHERE NOT EXISTS (SELECT 1 FROM menus LIMIT 1);
 

@@ -1,29 +1,44 @@
 const express = require('express');
-const { query, pool } = require('../db');
+const { query, pool, getOrderStats } = require('../db');
 
 const router = express.Router();
 
 const NEXT_STATUS = { pending: 'received', received: 'preparing', preparing: 'completed' };
-const ACTION_LABELS = { pending: '주문 접수', received: '제조 시작', preparing: '제조 완료' };
+
+function parseOptions(raw) {
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+async function fetchOptions(client, menuId, optionIds) {
+  if (!optionIds.length) return [];
+  const placeholders = optionIds.map((_, i) => `$${i + 2}`).join(', ');
+  const { rows } = await client.query(
+    `SELECT id, name, price FROM menu_options WHERE menu_id = $1 AND id IN (${placeholders}) ORDER BY id`,
+    [menuId, ...optionIds]
+  );
+  return rows;
+}
 
 async function getOrder(id) {
   const { rows: orders } = await query('SELECT * FROM orders WHERE id = $1', [id]);
   if (!orders.length) return null;
   const { rows: items } = await query('SELECT * FROM order_items WHERE order_id = $1', [id]);
-  return { ...orders[0], items };
+  return {
+    ...orders[0],
+    items: items.map((item) => ({ ...item, options: parseOptions(item.options) })),
+  };
 }
 
 router.get('/stats', async (req, res) => {
   try {
-    const { rows } = await query(`
-      SELECT
-        COUNT(*)::int AS total,
-        COUNT(*) FILTER (WHERE status = 'pending')::int AS received,
-        COUNT(*) FILTER (WHERE status = 'preparing')::int AS preparing,
-        COUNT(*) FILTER (WHERE status = 'completed')::int AS completed
-      FROM orders WHERE status != 'cancelled'
-    `);
-    res.json(rows[0]);
+    const stats = await getOrderStats();
+    res.json(stats);
   } catch (err) {
     const message = err?.message || String(err);
     res.status(500).json({ error: message });
@@ -49,7 +64,10 @@ router.get('/', async (req, res) => {
     const result = [];
     for (const order of orders) {
       const { rows: items } = await query('SELECT * FROM order_items WHERE order_id = $1', [order.id]);
-      result.push({ ...order, items });
+      result.push({
+        ...order,
+        items: items.map((item) => ({ ...item, options: parseOptions(item.options) })),
+      });
     }
     res.json(result);
   } catch (err) {
@@ -79,10 +97,7 @@ router.post('/', async (req, res) => {
       let optionTotal = 0;
       let optionDetails = [];
       if (optionIds.length) {
-        const { rows: optRows } = await client.query(
-          `SELECT id, name, price FROM menu_options WHERE menu_id = $1 AND id = ANY($2::int[]) ORDER BY id`,
-          [menu.id, optionIds]
-        );
+        const optRows = await fetchOptions(client, menu.id, optionIds);
         if (optRows.length !== optionIds.length) throw new Error('유효하지 않은 옵션이 포함되어 있습니다');
         optionDetails = optRows;
         optionTotal = optRows.reduce((sum, o) => sum + (o.price || 0), 0);

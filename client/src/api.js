@@ -1,5 +1,10 @@
+const API_BASE =
+  window.location.protocol === 'file:'
+    ? 'http://localhost:3001/api'
+    : `${window.location.origin}/api`;
+
 async function request(path, options = {}) {
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${API_BASE}${path}`, {
     headers: { 'Content-Type': 'application/json', ...options.headers },
     ...options,
   });

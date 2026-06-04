@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../api';
+import { resolveImageUrl } from '../utils/imageUrl';
 
 const ACTION_LABELS = { pending: '주문 접수', received: '제조 시작', preparing: '제조 완료' };
 
@@ -82,6 +83,14 @@ export default function AdminPage() {
         <div className="stock-grid">
           {menus.map((menu) => (
             <article key={menu.id} className="stock-card">
+              {menu.image_url && (
+                <img
+                  className="stock-thumb"
+                  src={resolveImageUrl(menu.image_url)}
+                  alt={menu.name}
+                  loading="lazy"
+                />
+              )}
               <p className="stock-name">{menu.name}</p>
               <p className="stock-qty">{menu.stock}개</p>
               <div className="stock-btns">

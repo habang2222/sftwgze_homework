@@ -1,11 +1,6 @@
-const { Pool } = require('pg');
 require('dotenv').config();
 
-if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL is not set. Create server/.env (copy from server/.env.example) and set DATABASE_URL.');
-}
+const url = process.env.DATABASE_URL || 'sqlite:./data/cozy.db';
+const usePg = url.startsWith('postgresql://') || url.startsWith('postgres://');
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-pool.on('error', (err) => console.error('[pg] idle client error', err));
-
-module.exports = { pool, query: (text, params) => pool.query(text, params) };
+module.exports = usePg ? require('./db-pg') : require('./db-sqlite');

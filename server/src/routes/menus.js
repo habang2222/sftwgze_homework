@@ -1,25 +1,11 @@
 const express = require('express');
-const { query } = require('../db');
+const { query, getMenusWithOptions } = require('../db');
 
 const router = express.Router();
 
 router.get('/', async (req, res) => {
   try {
-    const { rows } = await query(`
-      SELECT
-        m.*,
-        COALESCE(
-          json_agg(
-            json_build_object('id', o.id, 'name', o.name, 'price', o.price)
-            ORDER BY o.id
-          ) FILTER (WHERE o.id IS NOT NULL),
-          '[]'::json
-        ) AS options
-      FROM menus m
-      LEFT JOIN menu_options o ON o.menu_id = m.id
-      GROUP BY m.id
-      ORDER BY m.id
-    `);
+    const rows = await getMenusWithOptions();
     res.json(rows);
   } catch (err) {
     const message = err?.message || String(err);
